@@ -70,8 +70,6 @@ xssMain = do
   let cus = map snd fcus
   mapM_ (putStrLn . showOne) $ filter isHTTPHandler $ concatMap methods cus
 
--- This is just the first level. This won't include nested methods, but will include methods inside nested classes
--- Therefore information about the fully qualified name of the method is lost
 isHTTPHandler :: MemberDecl -> Bool
 isHTTPHandler m = maybe False go $ m ^? _MethodDecl
     where
@@ -90,6 +88,8 @@ identString x = x ^. _Ident ^. _2
 showOne :: (Pretty a, Show a) => a -> String
 showOne x = (takeWhile (/= ' ') $ show x) ++ ": " ++ prettyPrint x
 
+-- This is just the first level. This won't include nested methods, but will include methods inside nested classes
+-- Therefore information about the fully qualified name of the method is lost
 -- TODO look for a lens operator that will make this cleaner. something like filter (^# _MethodDecl)
 methods :: CompilationUnit -> [MemberDecl]
 methods = filter (isJust . (^? _MethodDecl)) . (^.. template)
