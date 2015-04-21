@@ -26,5 +26,7 @@ executable syntack
                      , parsec
                      , pretty-show
                      , tagged
+                     , containers
+
   -- hs-source-dirs:      
   default-language:    Haskell2010
