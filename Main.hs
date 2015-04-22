@@ -1,22 +1,21 @@
-{-# LANGUAGE TemplateHaskell, ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns, ScopedTypeVariables #-}
 module Main where
 
-import Control.Applicative ((<$>))
+import Control.Applicative
 import Control.Arrow
 import Control.Exception (SomeException, try)
 import Control.Lens
 import Control.Lens.TH
 import Control.Monad
-import qualified Data.ByteString.Char8 as BS
 import Data.Data (Data)
 import Data.Data.Lens (template)
 import Data.Either
 import Data.List (intercalate)
 import Data.Maybe
+import Data.Monoid
 import Data.Proxy
 import Debug.Trace
 import Language.Java.Parser (parser, compilationUnit)
-import qualified Language.Java.Parser as P
 import Language.Java.Pretty (Pretty, prettyPrint)
 import Language.Java.Syntax
 import System.Environment (getArgs)
@@ -24,6 +23,11 @@ import System.IO (hPutStrLn, stderr)
 import Text.Parsec.Error (ParseError)
 import Text.Parsec.Pos (newPos)
 import Text.Show.Pretty (ppShow)
+
+import qualified Data.ByteString.Char8 as BS
+import qualified Language.Java.Parser as P
+
+-- TODO: replace calls to getNodes with (^.. template) where typeinference doesn't require a Proxy
 
 -- Generic Util {
 eitherToMaybe :: Either e a -> Maybe a
@@ -36,6 +40,19 @@ maybeToEither _ (Just a) = Right a
 
 headE :: e -> [a] -> Either e a
 headE e = maybeToEither e . listToMaybe
+
+fml e a = fromMaybe undefined (e ^? a) -- need dependent types :(
+infix 9 `fml`
+
+-- `firstRight = msum` would also work but it wouldnn't concat errors
+-- FIXME: error types
+firstRight :: (Monoid e) => [Either e a] -> Either e a
+firstRight = firstRight' mempty
+    where
+        firstRight' :: (Monoid e) => e -> [Either e a] -> Either e a
+        firstRight' _ ((Right a):_) = Right a
+        firstRight' acc [] = Left acc
+        firstRight' acc ((Left e):xs) = firstRight' (acc <> e) xs
 
 showOne :: (Pretty a, Show a) => a -> String
 showOne x = (takeWhile (/= ' ') $ show x) ++ ": " ++ prettyPrint x
@@ -55,10 +72,22 @@ parseFile =
 -- AST Util {
 type MethodDecl' = ([Modifier], [TypeParam], Maybe Type, Ident, [FormalParam], [ExceptionType], MethodBody)
 type ClassDecl' = ([Modifier], Ident, [TypeParam], Maybe RefType, [RefType], ClassBody)
-type Ctx = ([ClassDecl'], ClassDecl', MethodDecl')
+type Ctx = ([ClassDecl'], ClassDecl', MethodDecl') -- Name resolution context
 
-fml e a = fromMaybe undefined (e ^? a) -- need dependent types :(
-infix 9 `fml`
+getNodes :: (Data a, Data b) => Proxy a -> b -> [a]
+getNodes p r = r ^.. template
+
+getNodesRec :: (Data a, Data b) => Proxy a -> b -> [a]
+getNodesRec p r = go $ r ^.. template
+    where go [] = []
+          go xs = xs ++ (go $ concatMap (^.. template) xs)
+
+methods :: CompilationUnit -> [(ClassDecl', [MethodDecl'])]
+methods = mapMaybe (\c -> (c ^? _ClassDecl) >>=
+            (\c' -> return (c', mapMaybe (^? _MethodDecl)
+                (getNodes (Proxy :: Proxy MemberDecl) c))))
+                    . getNodesRec (Proxy :: Proxy ClassDecl)
+
 
 ident :: Ident -> String
 ident x = x ^. _Ident ^. _2
@@ -106,6 +135,13 @@ mkMethodDecl (a, b, c, d, e, f, g) = MethodDecl a b c d e f g
 super :: Ctx -> Maybe Type
 super (_, c, _) = RefType <$> c ^. _4
 
+-- FIXME: a name and classdecl is not enough to uniquely define a mamber a la function overloading
+lookupMember :: String -> ClassDecl' -> Either String MemberDecl
+lookupMember n c = maybeToEither ("member " ++ n ++ " not found in class " ++ className c) $ lookup [n] $ map (memberName &&& id) $ c ^.. template
+
+lookupClass :: String -> [ClassDecl'] -> Either String ClassDecl'
+lookupClass n cs = maybeToEither ("class " ++ n ++ " not found") $ lookup n $ map (className &&& id) cs
+
 classType :: [String] -> Type
 classType n = RefType (ClassRefType (ClassType (map (\x -> (Ident Nothing x,[])) n)))
 
@@ -117,29 +153,39 @@ memberType m@(ConstructorDecl {}) = Left "FIXME: constructor need context" -- (m
 memberType m@(MemberClassDecl {}) = return . classType . return . classDeclName $ m `fml` _MemberClassDecl -- FIXME fully qualified classname
 memberType m@(MemberInterfaceDecl {}) = Left "WTF is the type of an interface"
 
-getNodes :: (Data a, Data b) => Proxy a -> b -> [a]
-getNodes p r = r ^.. template
+typeOfIdentifier :: Ctx -> String -> Either String Type
+typeOfIdentifier (cs, c, m) n = firstRight [ maybeToEither ("no var " ++ n ++ " in " ++ concat (memberName (mkMethodDecl m)) ++ "\n") $ (\x -> fmap (^. _2) $ listToMaybe $
+                                                filter (\(_, _, vs) -> n `elem` (map varDeclName vs)) $ mapMaybe (^? _LocalVars) $ x ^. _Block) =<< m ^. _7 ^. _MethodBody -- local variable in method
+                                           , memberType =<< lookupMember n c
+                                           ]
 
-getNodesRec :: (Data a, Data b) => Proxy a -> b -> [a]
-getNodesRec p r = go $ r ^.. template
-    where go [] = []
-          go xs = xs ++ (go $ concatMap (^.. template) xs)
-
-methods :: CompilationUnit -> [(ClassDecl', [MethodDecl'])]
-methods = mapMaybe (\c -> (c ^? _ClassDecl) >>=
-            (\c' -> return (c', mapMaybe (^? _MethodDecl)
-                (getNodes (Proxy :: Proxy MemberDecl) c))))
-                    . getNodesRec (Proxy :: Proxy ClassDecl)
-
+{-
+ - Identifiers are first resolved locally. This means I can have
+ - a variable `int String = 1`. Or more interestingly if I have
+ - a class Bar with a static field b then `Bar.b` refers to that
+ - static field iff there is no locally defined Bar. e.g.
+ - `int Bar = 1`
+ - This is why we try to resolve a.{exp} with a as an identifier first
+ - if that fails we check if a is a classname in which case it is a
+ - static field access.
+ -
+ - typeOfName _ a.b.c.d
+ -  = typeOfMember d _ (typeOfName _ a.b.c)
+ -  = typeOfMember d _ (typeOfMember c _ (typeOfName _ a.b))
+ -  = typeOfMember d _ (typeOfMember c _ (typeOfMember b _ (typeOfName _ a)))
+ -
+ -}
 typeOfName :: Ctx -> [String] -> Either String Type
-typeOfName (cs, c, m) (n:[]) = headE "lookupName: " $
-                                   catMaybes [ (\x -> fmap (^. _2) $ listToMaybe $ filter (\(_, _, vs) -> n `elem` (map varDeclName vs)) $ mapMaybe (^? _LocalVars) $ x ^. _Block) =<< m ^. _7 ^. _MethodBody -- local variable in method
-                                             , fmap snd . listToMaybe . filter ((n `elem`) . fst) $ mapMaybe
-                                                (eitherToMaybe . (\memb -> memberType memb >>=
-                                                    (\mt -> return (memberName memb, mt)))) $
-                                                        getNodes (Proxy :: Proxy MemberDecl) c -- method/fields in class
-                                             ]
-typeOfName (cs, c, m) (n:ns) = Left ("YOWZA: " ++ show (n:ns))
+typeOfName ctx@(cs, _, _) (reverse -> n:[]) = firstRight [ typeOfIdentifier ctx n, classType . const [n] <$> lookupClass n cs ]
+typeOfName ctx@(cs, c, m) (reverse -> n:ns) = typeOfMember n cs =<< typeOfName ctx (reverse ns)
+
+-- TODO: use typeOfMember in typeOfFieldAccess
+--              b                         a       typeOf a.b
+typeOfMember :: String -> [ClassDecl'] -> Type -> Either String Type
+typeOfMember m cs t@(PrimType _) = Left $ "attempting to access field " ++ m ++ " of primitive type " ++ concat (name (typeName t))
+typeOfMember m cs (name . typeName -> (n:[])) = memberType =<< lookupMember m =<< lookupClass n cs
+typeOfMember m cs (name . typeName -> (n:ns)) = Left $ "oh no I got a fqn " ++ intercalate "." (n:ns)
+
 -- }
 
 -- typeOf {
@@ -151,14 +197,14 @@ typeOfLit (Double _) = PrimType DoubleT
 typeOfLit (Boolean _) = PrimType BooleanT
 typeOfLit (Char _) = PrimType CharT
 typeOfLit (String _) = classType ["String"]
-typeOfLit Null = classType ["Object"] -- or Object ?
+typeOfLit Null = classType ["Object"]
 
 typeOfFieldAccess :: Ctx -> FieldAccess -> Either String Type
 typeOfFieldAccess ctx (PrimaryFieldAccess e i) = (\t -> typeOfFieldAccess ctx (ClassFieldAccess (typeName t) i)) =<< (typeOf ctx e)
 typeOfFieldAccess ctx@(cs, c, m) (SuperFieldAccess i) = do
     super' <- maybeToEither ("Class: " ++ className c ++ " has no super") $ super ctx
     typeOfFieldAccess ctx (ClassFieldAccess (typeName super') i)
-typeOfFieldAccess ctx@(cs, _, _) (ClassFieldAccess n i) = do
+typeOfFieldAccess ctx@(cs, _, _) (ClassFieldAccess n i) = do -- This is for Foo.class.bar accesses
     cn <- headE "empty class name" $ reverse $ name n
     c <- headE ("no such class " ++ cn) (filter ((== cn) . className) cs) -- FIXME fully qualified class names
     memberType =<< headE ("no member " ++ (ident i) ++ " in " ++ cn) (filter (((ident i) `elem`) . memberName) (getNodes (Proxy :: Proxy MemberDecl) c))
@@ -196,4 +242,4 @@ main = do
             (c, ms) <- lookup iClass $ map (className . fst &&& id) methodMap
             m <- lookup [iMeth] $ map (memberName . mkMethodDecl &&& id) ms
             return (c, m)
-    either putStrLn print $ typeOf (cs, c, m) exp'
+    either (putStrLn . ("typeOfError: " ++)) print $ typeOf (cs, c, m) exp'
