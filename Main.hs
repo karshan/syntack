@@ -1,4 +1,4 @@
-{-# LANGUAGE ViewPatterns, ScopedTypeVariables #-}
+{-# LANGUAGE CPP, DeriveDataTypeable, ViewPatterns, ScopedTypeVariables #-}
 module Main where
 
 import Control.Applicative
@@ -10,10 +10,12 @@ import Control.Monad
 import Data.Data (Data)
 import Data.Data.Lens (template)
 import Data.Either
+import Data.Functor.Foldable
 import Data.List (intercalate)
 import Data.Maybe
 import Data.Monoid
 import Data.Proxy
+import Data.Typeable (Typeable)
 import Debug.Trace
 import Language.Java.Parser (parser, compilationUnit)
 import Language.Java.Pretty (Pretty, prettyPrint)
@@ -21,12 +23,13 @@ import Language.Java.Syntax
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
 import Text.Parsec.Error (ParseError)
-import Text.Parsec.Pos (newPos)
+import Text.Parsec.Pos (SourcePos, newPos)
 import Text.Show.Pretty (ppShow)
 
 import qualified Data.ByteString.Char8 as BS
 import qualified Language.Java.Parser as P
 
+import Callgraph
 -- TODO: replace calls to getNodes with (^.. template) where typeinference doesn't require a Proxy
 
 -- Generic Util {
@@ -229,6 +232,9 @@ typeOf ctx@(cs, c, m) e = f e
         f (ExpName n) = typeOfName ctx (name n)
         f e = error (show e)
 -- }
+
+f :: FilePath -> SourcePos -> Either String Ctx
+f = undefined
 
 main :: IO ()
 main = do
