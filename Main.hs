@@ -1,6 +1,9 @@
 {-# LANGUAGE CPP, DeriveDataTypeable, ViewPatterns, ScopedTypeVariables #-}
 module Main where
 
+import Data.Char
+import Language.Java.Pretty (prettyPrint)
+
 import Control.Applicative
 import Control.Arrow
 import Control.Exception (SomeException, try)
@@ -12,6 +15,8 @@ import Data.Data.Lens (template)
 import Data.Either
 import Data.Functor.Foldable
 import Data.List (intercalate)
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Maybe
 import Data.Monoid
 import Data.Proxy
@@ -62,6 +67,9 @@ showOne x = (takeWhile (/= ' ') $ show x) ++ ": " ++ prettyPrint x
 
 pprint :: (Show a) => a -> IO ()
 pprint = putStrLn . ppShow
+
+pprintJ :: (Pretty a) => a -> IO ()
+pprintJ = putStrLn . prettyPrint
 
 parse :: String -> Either ParseError CompilationUnit
 parse = parser compilationUnit
@@ -233,11 +241,13 @@ typeOf ctx@(cs, c, m) e = f e
         f e = error (show e)
 -- }
 
-f :: FilePath -> SourcePos -> Either String Ctx
+type NewCtx = Map String Type
+
+f :: FilePath -> SourcePos -> Either String NewCtx
 f = undefined
 
-main :: IO ()
-main = do
+oldmain :: IO ()
+oldmain = do
     putStrLn "usage: ./syntack files class method exp"
     (files:iClass:iMeth:iExp:_) <- getArgs
     cus <- rights <$> ((mapM parseFile . lines) =<< readFile files)
@@ -249,3 +259,36 @@ main = do
             m <- lookup [iMeth] $ map (memberName . mkMethodDecl &&& id) ms
             return (c, m)
     either (putStrLn . ("typeOfError: " ++)) print $ typeOf (cs, c, m) exp'
+
+main :: IO ()
+main = do
+    putStrLn "usage: ./syntack filelist funcname"
+    (fl:callsArg:_) <- getArgs
+    filelist <- lines <$> readFile fl
+    forM_ filelist $ \f -> either (const $ putStrLn $ "failed to parse " ++ f) (go callsArg) =<< parseFile f
+        where
+            go :: String -> CompilationUnit -> IO ()
+            go callsArg cu = mapM_ (\(_, ms) -> mapM_ pprintJ . map mkMethodDecl $ filter (calls callsArg)  $ filter isReqHandler ms) $ methods cu
+            isReqHandler:: MethodDecl' -> Bool
+            isReqHandler m = any isReqHandlerAnnotation $ mapMaybe (^? _Annotation) $ m ^. _1
+
+isReqHandlerAnnotation :: Annotation -> Bool
+isReqHandlerAnnotation a = any ff $ concatMap name $ (a ^.. template :: [Name])
+    where
+        ff :: String -> Bool
+        ff = or . (\s -> map (== s) reqHandlerAnnotations) . map toLower
+
+reqHandlerAnnotations :: [String]
+reqHandlerAnnotations = ["controller", "get", "post", "request", "delete", "put", "requestmapping"]
+
+calls :: String -> MethodDecl' -> Bool
+calls methname md = any (== methname) $ map methodInvName (md ^.. template :: [MethodInvocation])
+
+last' [] = Nothing
+last' xs = Just $ last xs
+
+methodInvName :: MethodInvocation -> String
+methodInvName (MethodCall n _) = fromMaybe "" $ last' $ name n
+methodInvName (PrimaryMethodCall _ _ i _) = ident i
+methodInvName _ = ""
+
