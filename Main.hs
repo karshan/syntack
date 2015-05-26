@@ -13,7 +13,6 @@ import Control.Monad
 import Data.Data (Data)
 import Data.Data.Lens (template)
 import Data.Either
-import Data.Functor.Foldable
 import Data.List (intercalate)
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -34,7 +33,6 @@ import Text.Show.Pretty (ppShow)
 import qualified Data.ByteString.Char8 as BS
 import qualified Language.Java.Parser as P
 
-import Callgraph
 -- TODO: replace calls to getNodes with (^.. template) where typeinference doesn't require a Proxy
 
 -- Generic Util {

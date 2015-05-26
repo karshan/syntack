@@ -27,7 +27,6 @@ executable syntack
                      , pretty-show
                      , tagged
                      , containers
-                     , recursion-schemes
 
   -- hs-source-dirs:      
   default-language:    Haskell2010
