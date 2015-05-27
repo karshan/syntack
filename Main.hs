@@ -2,6 +2,7 @@
 module Main where
 
 import Data.Char
+import Data.List
 import Language.Java.Pretty (prettyPrint)
 
 import Control.Applicative
@@ -274,10 +275,10 @@ isReqHandlerAnnotation :: Annotation -> Bool
 isReqHandlerAnnotation a = any ff $ concatMap name $ (a ^.. template :: [Name])
     where
         ff :: String -> Bool
-        ff = or . (\s -> map (== s) reqHandlerAnnotations) . map toLower
+        ff = or . (\s -> map (`isInfixOf` s) reqHandlerAnnotations) . map toLower
 
 reqHandlerAnnotations :: [String]
-reqHandlerAnnotations = ["controller", "post", "request", "delete", "put", "requestmapping"]
+reqHandlerAnnotations = ["controller", "post", "request", "delete", "put"]
 
 calls :: String -> MethodDecl' -> Bool
 calls methname md = any (== methname) $ map methodInvName (getNodesRec (Proxy :: Proxy MethodInvocation) md)
