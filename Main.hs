@@ -266,7 +266,7 @@ main = do
     forM_ filelist $ \f -> either (const $ putStrLn $ "failed to parse " ++ f) (go callsArg) =<< parseFile f
         where
             go :: String -> CompilationUnit -> IO ()
-            go callsArg cu = mapM_ (\(_, ms) -> mapM_ pprintJ . map mkMethodDecl $ filter (calls callsArg)  $ filter isReqHandler ms) $ methods cu
+            go callsArg cu = mapM_ (\(_, ms) -> mapM_ pprintJ . map mkMethodDecl $ filter (not . calls callsArg)  $ filter isReqHandler ms) $ methods cu
             isReqHandler:: MethodDecl' -> Bool
             isReqHandler m = any isReqHandlerAnnotation $ mapMaybe (^? _Annotation) $ m ^. _1
 
@@ -277,10 +277,10 @@ isReqHandlerAnnotation a = any ff $ concatMap name $ (a ^.. template :: [Name])
         ff = or . (\s -> map (== s) reqHandlerAnnotations) . map toLower
 
 reqHandlerAnnotations :: [String]
-reqHandlerAnnotations = ["controller", "get", "post", "request", "delete", "put", "requestmapping"]
+reqHandlerAnnotations = ["controller", "post", "request", "delete", "put", "requestmapping"]
 
 calls :: String -> MethodDecl' -> Bool
-calls methname md = any (== methname) $ map methodInvName (md ^.. template :: [MethodInvocation])
+calls methname md = any (== methname) $ map methodInvName (getNodesRec (Proxy :: Proxy MethodInvocation) md)
 
 last' [] = Nothing
 last' xs = Just $ last xs
