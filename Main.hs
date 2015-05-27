@@ -272,13 +272,15 @@ main = do
             isReqHandler m = any isReqHandlerAnnotation $ mapMaybe (^? _Annotation) $ m ^. _1
 
 isReqHandlerAnnotation :: Annotation -> Bool
-isReqHandlerAnnotation a = any ff $ concatMap name $ (a ^.. template :: [Name])
-    where
-        ff :: String -> Bool
-        ff = or . (\s -> map (`isInfixOf` s) reqHandlerAnnotations) . map toLower
+isReqHandlerAnnotation (NormalAnnotation n l)
+    = name n == ["RequestMapping"] &&
+      maybe False (not . (`elem` reqHandlerAnnotations)) (lookup "method" (map (ident *** prettyPrint) l))
+isReqHandlerAnnotation (SingleElementAnnotation n _) = False
+isReqHandlerAnnotation (MarkerAnnotation n) = False
 
 reqHandlerAnnotations :: [String]
-reqHandlerAnnotations = ["controller", "post", "request", "delete", "put"]
+reqHandlerAnnotations = ["RequestMethod.GET"]
+
 
 calls :: String -> MethodDecl' -> Bool
 calls methname md = any (== methname) $ map methodInvName (getNodesRec (Proxy :: Proxy MethodInvocation) md)
