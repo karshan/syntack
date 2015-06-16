@@ -1,6 +1,0 @@
-#!/bin/sh
-while [ 1 ]; do
-    inotifywait -e modify $(find . -name "*.hs")
-    cabal configure
-    cabal build
-done
