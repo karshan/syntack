@@ -28,7 +28,9 @@ executable syntack
                      , tagged
                      , containers
                      , syz
+                     , syb
                      , utf8-string
+                     , zeverything
 
   hs-source-dirs:      src
   default-language:    Haskell2010
