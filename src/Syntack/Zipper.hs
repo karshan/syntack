@@ -1,4 +1,9 @@
-module Syntack.Zipper where
+module Syntack.Zipper
+    (
+      ZC
+    , upTill
+    , posToZipper
+    ) where
 
 import           Control.Arrow ((&&&))
 import           Data.Bool (bool)
@@ -8,16 +13,8 @@ import           Data.Generics.Zipper (Zipper, toZipper, up, query)
 import           Data.Typeable (Typeable, typeOf)
 
 import           Language.Java.Syntax
-import           Language.Java.Pretty (Pretty, prettyPrint)
 
-import           Text.Show.Pretty (ppShow)
 import           Text.Parsec.Pos (sourceLine, sourceColumn)
-
-pps :: (Show a) => a -> IO ()
-pps = putStrLn . ppShow
-
-ppj :: (Pretty a) => a -> IO ()
-ppj = putStrLn . prettyPrint
 
 -- zix :: Int -> Zipper a -> Zipper a
 -- zix n = left . (!! n) . iterate down . down
@@ -30,10 +27,14 @@ upTill t z = bool (upTill t =<< up z) (Just z) $ query typeOf z == typeOf t
 posToZipper :: Int -> Int -> CompilationUnit -> Maybe ZC
 posToZipper line col cu =
     fmap snd $ foldl (\a e -> bool a (Just e) ((fst e) `better` (fmap fst a))) Nothing $
-        zeverything collectList (preorder (mkQ Nothing identPos)) (toZipper cu)
+        zeverything collectList (preorder (mkQ Nothing (Just . identPos))) (toZipper cu) ++
+        zeverything collectList (preorder (mkQ Nothing expPos)) (toZipper cu)
     where
-        identPos :: Ident -> Maybe (Int, Int)
-        identPos (Ident p _) = fmap (sourceLine &&& sourceColumn) p
+        identPos :: Ident -> (Int, Int)
+        identPos (Ident p _) = (sourceLine &&& sourceColumn) p
+        expPos :: Exp -> Maybe (Int, Int)
+        expPos (This p) = Just $ (sourceLine &&& sourceColumn) p
+        expPos _ = Nothing
         better :: (Int, Int) -> Maybe (Int, Int) -> Bool
         better _ Nothing = True
         better (nl, nc) (Just (l, c)) =

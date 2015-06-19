@@ -3,12 +3,21 @@ import           Control.Monad ((<=<))
 
 import           Language.Java.Syntax
 import           Language.Java.Parser.Util (parseFile)
+import           Language.Java.Pretty (Pretty, prettyPrint)
 
 import           System.Environment (getArgs)
 import           System.IO.Util (putStdErrLn)
 
 import           Syntack.Zipper (upTill, posToZipper)
 import           Syntack.TypeInference (typeOf)
+
+import           Text.Show.Pretty (ppShow)
+
+pps :: (Show a) => a -> IO ()
+pps = putStrLn . ppShow
+
+ppj :: (Pretty a) => a -> IO ()
+ppj = putStrLn . prettyPrint
 
 usage :: String
 usage = "./syntack javasrcfile line col"
