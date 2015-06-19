@@ -3,21 +3,24 @@ module Syntack.Zipper
       ZC
     , upTill
     , posToZipper
+    , zix
     ) where
 
 import           Control.Arrow ((&&&))
+import           Control.Monad ((<=<))
+import           Control.Monad.Util (iterateM)
 import           Data.Bool (bool)
 import           Data.Generics.Aliases (mkQ)
 import           Data.Generics.Validation (zeverything, collectList, preorder)
-import           Data.Generics.Zipper (Zipper, toZipper, up, query)
+import           Data.Generics.Zipper (Zipper, toZipper, up, down, left, query)
 import           Data.Typeable (Typeable, typeOf)
 
 import           Language.Java.Syntax
 
 import           Text.Parsec.Pos (sourceLine, sourceColumn)
 
--- zix :: Int -> Zipper a -> Zipper a
--- zix n = left . (!! n) . iterate down . down
+zix :: Int -> Zipper a -> Maybe (Zipper a)
+zix n = left <=< iterateM n down <=< down
 
 type ZC = Zipper CompilationUnit
 
