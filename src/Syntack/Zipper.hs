@@ -4,7 +4,7 @@ import           Control.Arrow ((&&&))
 import           Data.Bool (bool)
 import           Data.Generics.Aliases (mkQ)
 import           Data.Generics.Validation (zeverything, collectList, preorder)
-import           Data.Generics.Zipper (Zipper, toZipper, fromZipper, getHole, up, down, left, right, query)
+import           Data.Generics.Zipper (Zipper, toZipper, up, query)
 import           Data.Typeable (Typeable, typeOf)
 
 import           Language.Java.Syntax
@@ -35,6 +35,6 @@ posToZipper cu line col =
         identPos :: Ident -> Maybe (Int, Int)
         identPos (Ident p _) = fmap (sourceLine &&& sourceColumn) p
         better :: (Int, Int) -> Maybe (Int, Int) -> Bool
-        better e Nothing = True
+        better _ Nothing = True
         better (nl, nc) (Just (l, c)) =
             (abs (nl - line), abs (nc - col)) < (abs (l - line), abs (c - col))
