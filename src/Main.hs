@@ -1,25 +1,29 @@
 {-# LANGUAGE ViewPatterns #-}
-import           Data.Either (lefts, rights)
+import           Control.Monad ((<=<))
 
+import           Language.Java.Syntax
 import           Language.Java.Parser.Util (parseFile)
 
 import           System.Environment (getArgs)
 import           System.IO.Util (putStdErrLn)
 
-import           Syntack.Zipper (ppj)
+import           Syntack.Zipper (upTill, posToZipper)
+import           Syntack.TypeInference (typeOf)
 
 usage :: String
-usage = "./syntack file-containing-list-of-filenames"
+usage = "./syntack javasrcfile line col"
 
 main :: IO ()
 main = do
     args <- getArgs
-    if length args /= 1 then
+    if length args /= 3 then
         putStrLn usage
-    else run (head args)
+    else run (head args) (read $ args !! 1) (read $ args !! 2)
 
-run :: FilePath -> IO ()
-run fileOfFiles = do
-    fs <- mapM parseFile . lines =<< readFile fileOfFiles
-    mapM_ (putStdErrLn . show) $ lefts fs
-    ppj $ head $ rights fs
+run :: FilePath -> Int -> Int -> IO ()
+run file line col = do
+    cu <- parseFile file
+    either (putStdErrLn . show) 
+           (maybe (putStrLn "posToExp failed") 
+                  (print . typeOf) . (upTill (undefined :: Exp) <=< posToZipper line col))
+           cu

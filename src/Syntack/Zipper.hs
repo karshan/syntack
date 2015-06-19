@@ -27,8 +27,8 @@ type ZC = Zipper CompilationUnit
 upTill :: (Typeable a) => a -> ZC -> Maybe ZC
 upTill t z = bool (upTill t =<< up z) (Just z) $ query typeOf z == typeOf t
 
-posToZipper :: CompilationUnit -> Int -> Int -> Maybe ZC
-posToZipper cu line col =
+posToZipper :: Int -> Int -> CompilationUnit -> Maybe ZC
+posToZipper line col cu =
     fmap snd $ foldl (\a e -> bool a (Just e) ((fst e) `better` (fmap fst a))) Nothing $
         zeverything collectList (preorder (mkQ Nothing identPos)) (toZipper cu)
     where
