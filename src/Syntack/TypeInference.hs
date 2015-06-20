@@ -33,7 +33,7 @@ typeOf' :: ZC -> Exp -> Either String Type
 typeOf' _ (Lit _ l) = Right $ typeOfLit l
 typeOf' _ (ClassLit _ c) = maybe (Left "FIXME: ClassLit Nothing") (Right . convType) c
 typeOf' z (This _) = typeOfThis z
-typeOf' _ (ThisClass _ n) = Right $ mkSimpleType . name $ n
+typeOf' _ (ThisClass n) = Right $ mkSimpleType . name $ n
 typeOf' _ e = error (show e)
 {-
         | InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
