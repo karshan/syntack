@@ -4,12 +4,14 @@ module Syntack.Zipper
     , upTill
     , posToZipper
     , zix
+    , zfind
     ) where
 
 import           Control.Arrow ((&&&))
 import           Control.Monad ((<=<))
 import           Control.Monad.Util (iterateM)
 import           Data.Bool (bool)
+import           Data.Data (Data)
 import           Data.Generics.Aliases (mkQ)
 import           Data.Generics.Validation (zeverything, collectList, preorder)
 import           Data.Generics.Zipper (Zipper, toZipper, up, down, left, query)
@@ -26,6 +28,9 @@ type ZC = Zipper CompilationUnit
 
 upTill :: (Typeable a) => a -> ZC -> Maybe ZC
 upTill t z = bool (upTill t =<< up z) (Just z) $ query typeOf z == typeOf t
+
+zfind :: (Typeable b, Data r) => (b -> Maybe a) -> Zipper r -> [(a, Zipper r)]
+zfind f z = zeverything collectList (preorder (mkQ Nothing f)) z
 
 posToZipper :: Int -> Int -> CompilationUnit -> Maybe ZC
 posToZipper line col cu =

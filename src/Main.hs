@@ -1,5 +1,7 @@
 {-# LANGUAGE ViewPatterns #-}
-import           Control.Monad ((<=<))
+import           Data.Either (lefts, rights)
+import           Data.Generics.Zipper (getHole)
+import           Data.Maybe (mapMaybe)
 
 import           Language.Java.Syntax
 import           Language.Java.Parser.Util (parseFile)
@@ -8,8 +10,8 @@ import           Language.Java.Pretty (Pretty, prettyPrint)
 import           System.Environment (getArgs)
 import           System.IO.Util (putStdErrLn)
 
-import           Syntack.Zipper (upTill, posToZipper)
-import           Syntack.TypeInference (typeOf)
+import           Syntack.Callgraph (callsTo)
+import           Syntack.Zipper (ZC)
 
 import           Text.Show.Pretty (ppShow)
 
@@ -20,19 +22,18 @@ ppj :: (Pretty a) => a -> IO ()
 ppj = putStrLn . prettyPrint
 
 usage :: String
-usage = "./syntack javasrcfile line col"
+usage = "usage: ./syntack <(find $PROJDIR -name \"*.java\")"
 
 main :: IO ()
 main = do
     args <- getArgs
-    if length args /= 3 then
+    if length args /= 1 then
         putStrLn usage
-    else run (head args) (read $ args !! 1) (read $ args !! 2)
+    else run (head args)
 
-run :: FilePath -> Int -> Int -> IO ()
-run file line col = do
-    cu <- parseFile file
-    either (putStdErrLn . show) 
-           (maybe (putStrLn "posToExp failed") 
-                  (print . typeOf) . (upTill (undefined :: Exp) <=< posToZipper line col))
-           cu
+run :: FilePath -> IO ()
+run fileOfFiles = do
+    fs <- mapM parseFile . lines =<< readFile fileOfFiles
+    mapM_ (putStdErrLn . show) $ lefts fs
+    mapM_ ppj $ mapMaybe (getHole :: ZC -> Maybe MethodInvocation)
+                         (callsTo (rights fs) ["java.io.File"])
