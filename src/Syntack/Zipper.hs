@@ -5,6 +5,7 @@ module Syntack.Zipper
     , posToZipper
     , zix
     , zfind
+    , children
     ) where
 
 import           Control.Arrow ((&&&))
@@ -30,7 +31,13 @@ upTill :: (Typeable a) => a -> ZC -> Maybe ZC
 upTill t z = bool (upTill t =<< up z) (Just z) $ query typeOf z == typeOf t
 
 zfind :: (Typeable b, Data r) => (b -> Maybe a) -> Zipper r -> [(a, Zipper r)]
-zfind f z = zeverything collectList (preorder (mkQ Nothing f)) z
+zfind f = zeverything collectList (preorder (mkQ Nothing f))
+
+children :: (Typeable a, Data r) => a -> Zipper r -> [Zipper r]
+children a z = map snd $ zeverything collectList (preorder (mkQ Nothing $ f a)) z
+    where
+        f :: (Typeable a) => a -> a -> Maybe ()
+        f _ _ = Just ()
 
 posToZipper :: Int -> Int -> CompilationUnit -> Maybe ZC
 posToZipper line col cu =
