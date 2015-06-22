@@ -4,6 +4,7 @@ module Language.Java.Syntax.Util
     , name
     , className
     , packageName
+    , typeName
     ) where
 
 import Language.Java.Syntax
@@ -21,3 +22,8 @@ className (EnumDecl _ i _ _) = ident i
 packageName :: CompilationUnit -> [String]
 packageName (CompilationUnit (Just (PackageDecl n)) _ _) = name n
 packageName _ = []
+
+typeName :: Type -> [String]
+typeName (PrimType p) = [show p] -- FIXME "Boolean" /= "BooleanT"
+typeName (RefType (ArrayType t)) = typeName t
+typeName (RefType (ClassRefType (ClassType c))) = map (ident . fst) c

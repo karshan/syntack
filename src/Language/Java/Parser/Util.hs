@@ -18,6 +18,6 @@ import           Language.Java.Parser (parser, compilationUnit)
 parse :: String -> Either ParseError CompilationUnit
 parse = parser compilationUnit
 
-parseFile :: FilePath -> IO (Either (FilePath, String) CompilationUnit)
-parseFile f = fmap (either (\(x :: SomeException) -> Left (f, show x))
-                   (over _Left ((,) f . show) . parse . toString)) . try $ BS.readFile f
+parseFile :: FilePath -> IO (Either String CompilationUnit)
+parseFile = fmap (either (\(x :: SomeException) -> Left $ show x)
+                   (over _Left show . parse . toString)) . try . BS.readFile
