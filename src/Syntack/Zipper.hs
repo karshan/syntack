@@ -6,21 +6,26 @@ module Syntack.Zipper
     , zix
     , zfind
     , children
+    , unsafeGetHole
     ) where
 
-import           Control.Arrow ((&&&))
-import           Control.Monad ((<=<))
-import           Control.Monad.Util (iterateM)
-import           Data.Bool (bool)
-import           Data.Data (Data)
-import           Data.Generics.Aliases (mkQ)
-import           Data.Generics.Validation (zeverything, collectList, preorder)
-import           Data.Generics.Zipper (Zipper, toZipper, up, down, left, query)
-import           Data.Typeable (Typeable, typeOf)
+import Control.Arrow ((&&&))
+import Control.Monad ((<=<))
+import Control.Monad.Util (iterateM)
+import Data.Bool (bool)
+import Data.Data (Data)
+import Data.Generics.Aliases (mkQ)
+import Data.Generics.Validation (zeverything, collectList, preorder)
+import Data.Generics.Zipper (getHole, Zipper, toZipper, up, down, left, query)
+import Data.Maybe (fromMaybe)
+import Data.Typeable (Typeable, typeOf)
 
-import           Language.Java.Syntax
+import Language.Java.Syntax
 
-import           Text.Parsec.Pos (sourceLine, sourceColumn)
+import Text.Parsec.Pos (sourceLine, sourceColumn)
+
+unsafeGetHole :: (Typeable b) => Zipper a -> b
+unsafeGetHole = fromMaybe (error "getHole") . getHole
 
 zix :: Int -> Zipper a -> Maybe (Zipper a)
 zix n = left <=< iterateM n down <=< down

@@ -1,6 +1,8 @@
 module Syntack.TypeInference
     (
-      typeOf
+      Type(..)
+    , typeOf
+    , typeOfName
     ) where
 
 import           Control.Lens (_1, over)
@@ -24,6 +26,9 @@ mkSimpleType s = ClassT $ zip s (repeat [])
 
 m_e :: e -> Maybe a -> Either e a
 m_e = maybeToEither
+
+typeOfName :: [String] -> ZC -> Type
+typeOfName = undefined
 
 typeOf :: ZC -> Either String Type
 typeOf z = typeOf' z =<< (m_e "zipper not pointing at an Exp" $
@@ -69,7 +74,7 @@ typeOfLit (Char _) = PrimT CharT
 typeOfLit (String _) = mkSimpleType ["String"]
 typeOfLit Null = mkSimpleType ["Object"]
 
--- FIXME this is incorrect for a this withing a InstanceCreation or QualInstanceCreation
+-- FIXME this is incorrect for a this within a InstanceCreation or QualInstanceCreation
 typeOfThis :: ZC -> Either String Type
 typeOfThis = go <=< m_e "`this` not within a ClassBody" . upTill (undefined :: ClassBody)
     where
