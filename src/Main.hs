@@ -39,11 +39,11 @@ run :: FilePath -> IO ()
 run fileOfFiles = do
     fs <- mapM (\x -> parseFile x >>= (\cu -> return (x, cu))) . lines =<< readFile fileOfFiles
     mapM_ (putStdErrLn . show) $ filter (isLeft . snd) fs
-    mapM_ (\(f, ms) -> putStrLn f >> mapM_ ppj ms) $ map (over _2 (concatMap findColinMethods)) (filter (isRight . snd) fs)
+    mapM_ (\(f, ms) -> putStrLn (f ++ ":") >> mapM_ ppj ms) $ map (\(a, (Right b)) -> (a, findColinMethods b)) $ filter (isRight . snd) fs
 
 --                                                  pointing to MemberDecl
 findColinMethods :: CompilationUnit -> [MemberDecl]
-findColinMethods cu = filter (\x -> has3stmts x || returnsMagic x) $ concatMap methods $ baseActionSubClasses cu
+findColinMethods cu = filter (\x -> hasNoArgs x && (has3stmts x || returnsMagic x)) $ concatMap methods $ baseActionSubClasses cu
 
 baseActionSubClasses :: CompilationUnit -> [ClassDecl]
 baseActionSubClasses cu = filter ff (cu ^.. template :: [ClassDecl])
@@ -69,3 +69,7 @@ returnsMagic m = not . null $ filter ff (m ^.. template :: [Stmt])
 isMagicReturn :: Exp -> Bool
 isMagicReturn (ExpName (name -> (i:[]))) = i `elem` ["APPROVED", "CUSTOMER", "ERROR", "FAILED", "INPUT", "LOCKED", "NAMESPACES", "PRIVATE", "PUBLIC", "SENT", "SETCOMPANY", "SUCCESS"]
 isMagicReturn _ = False
+
+hasNoArgs :: MemberDecl -> Bool
+hasNoArgs (MethodDecl _ _ _ _ [] _ _) = True
+hasNoArgs _ = False

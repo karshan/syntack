@@ -13,7 +13,7 @@ license-file:        LICENSE
 -- category:            
 build-type:          Simple
 -- extra-source-files:  
-cabal-version:       >=1.22
+cabal-version:       >=1.10
 
 executable syntack
   main-is:             Main.hs
