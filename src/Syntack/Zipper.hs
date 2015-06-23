@@ -4,6 +4,7 @@ module Syntack.Zipper
     , upTill
     , posToZipper
     , zix
+    , immediateChildren
     , zfind
     , children
     , unsafeGetHole
@@ -15,8 +16,9 @@ import Control.Monad.Util (iterateM)
 import Data.Bool (bool)
 import Data.Data (Data)
 import Data.Generics.Aliases (mkQ)
-import Data.Generics.Validation (zeverything, collectList, preorder)
-import Data.Generics.Zipper (getHole, Zipper, toZipper, up, down, left, query)
+import Data.Generics.Validation (zeverything, collectList, nonstop)
+import Data.Generics.Zipper (getHole, Zipper, toZipper, up, down, left, query, downQ, leftQ)
+import Data.List ((\\))
 import Data.Maybe (fromMaybe)
 import Data.Typeable (Typeable, typeOf)
 
@@ -30,16 +32,21 @@ unsafeGetHole = fromMaybe (error "getHole") . getHole
 zix :: Int -> Zipper a -> Maybe (Zipper a)
 zix n = left <=< iterateM n down <=< down
 
+immediateChildren :: Zipper a -> [Zipper a]
+immediateChildren z = downQ [] g z
+    where
+        g z' = z':leftQ [] g z'
+
 type ZC = Zipper CompilationUnit
 
 upTill :: (Typeable a) => a -> ZC -> Maybe ZC
 upTill t z = bool (upTill t =<< up z) (Just z) $ query typeOf z == typeOf t
 
 zfind :: (Typeable b, Data r) => (b -> Maybe a) -> Zipper r -> [(a, Zipper r)]
-zfind f = zeverything collectList (preorder (mkQ Nothing f))
+zfind f = zeverything collectList (nonstop (mkQ Nothing f))
 
 children :: (Typeable a, Data r) => a -> Zipper r -> [Zipper r]
-children a z = map snd $ zeverything collectList (preorder (mkQ Nothing $ f a)) z
+children a z = map snd $ zeverything collectList (nonstop (mkQ Nothing $ f a)) z
     where
         f :: (Typeable a) => a -> a -> Maybe ()
         f _ _ = Just ()
@@ -47,8 +54,8 @@ children a z = map snd $ zeverything collectList (preorder (mkQ Nothing $ f a)) 
 posToZipper :: Int -> Int -> CompilationUnit -> Maybe ZC
 posToZipper line col cu =
     fmap snd $ foldl (\a e -> bool a (Just e) ((fst e) `better` (fmap fst a))) Nothing $
-        zeverything collectList (preorder (mkQ Nothing (Just . identPos))) (toZipper cu) ++
-        zeverything collectList (preorder (mkQ Nothing expPos)) (toZipper cu)
+        zeverything collectList (nonstop (mkQ Nothing (Just . identPos))) (toZipper cu) ++
+        zeverything collectList (nonstop (mkQ Nothing expPos)) (toZipper cu)
     where
         identPos :: Ident -> (Int, Int)
         identPos (Ident p _) = (sourceLine &&& sourceColumn) p
