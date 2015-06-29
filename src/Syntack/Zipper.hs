@@ -18,7 +18,6 @@ import Data.Data (Data)
 import Data.Generics.Aliases (mkQ)
 import Data.Generics.Validation (zeverything, collectList, nonstop)
 import Data.Generics.Zipper (getHole, Zipper, toZipper, up, down, left, query, downQ, leftQ)
-import Data.List ((\\))
 import Data.Maybe (fromMaybe)
 import Data.Typeable (Typeable, typeOf)
 

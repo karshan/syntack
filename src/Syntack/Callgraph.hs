@@ -4,21 +4,17 @@ module Syntack.Callgraph
       callsTo
     ) where
 
-import Control.Arrow ((&&&))
-import Control.Monad ((<=<))
-import Data.Generics.Zipper (fromZipper, toZipper, getHole, up)
-import Data.List (unfoldr)
+import Data.Generics.Zipper (toZipper, getHole)
 import Data.Maybe (fromMaybe)
 import Language.Java.Syntax hiding (Type)
-import Language.Java.Syntax.Util (ident, name, className, packageName)
-import Syntack.Zipper (ZC, children, upTill, unsafeGetHole)
-import Syntack.TypeInference (Type(..), typeOfName)
+import Language.Java.Syntax.Util (ident)
+import Syntack.Zipper (ZC, children)
 
-callsTo :: [CompilationUnit] -> [String] -> [ZC]
+callsTo :: [CompilationUnit] -> ZC -> [ZC]
 callsTo cs n = filter (isCallTo n) (concatMap (children (undefined :: Exp) . toZipper) cs)
 
-isCallTo :: [String] -> ZC -> Bool
-isCallTo targetName z = go (fromMaybe (error "isCallTo: zipper not pointing to Exp") $ getHole z)
+isCallTo :: ZC -> ZC -> Bool
+isCallTo _ z = go (fromMaybe (error "isCallTo: zipper not pointing to Exp") $ getHole z)
     where
         go :: Exp -> Bool
         go (MethodInv m) = gomi m
@@ -29,25 +25,8 @@ isCallTo targetName z = go (fromMaybe (error "isCallTo: zipper not pointing to E
         go _ = False
 
         gomi :: MethodInvocation -> Bool
-        gomi (MethodCall n _) = resolveMethodCall (name n) z == targetName
-        gomi (PrimaryMethodCall e rts i as) = False
-        gomi (SuperMethodCall rts i as) = False
-        gomi (ClassMethodCall n rts i as) = False -- n.super.<rts>i(as)
-        gomi (TypeMethodCall n rts i as) = False -- n.<rts>i(as)
-
-resolveMethodCall :: [String] -> ZC -> [String]
-resolveMethodCall (i:[]) z = packageName (fromZipper z)
-                          ++ [last (unfoldr (fmap ((className . unsafeGetHole) &&& id) .
-                                        upTill (undefined :: ClassDecl) <=< up) z)] -- outtermost enclosing class name
-                          ++ [i]
-resolveMethodCall (reverse -> (i:n)) z = let t = typeToName $ typeOfName (reverse n) z in
-                                             typePackageName t ++ t ++ [i]
-resolveMethodCall _ _ = []
-
-typeToName :: Type -> [String]
-typeToName (PrimT p)  = [show p]
-typeToName (ArrayT t) = typeToName t
-typeToName (ClassT c) = map fst c
-
-typePackageName :: [String] -> [String]
-typePackageName = id
+        gomi (MethodCall _ _) = False
+        gomi (PrimaryMethodCall _ _ _ _) = False
+        gomi (SuperMethodCall _ _ _) = False
+        gomi (ClassMethodCall _ _ _ _) = False -- n.super.<rts>i(as)
+        gomi (TypeMethodCall _ _ _ _) = False -- n.<rts>i(as)
