@@ -4,17 +4,26 @@ module Syntack.Callgraph
       callsTo
     ) where
 
+import Control.Lens ((^?))
+import Data.Either.Util (maybeToEither)
 import Data.Generics.Zipper (toZipper, getHole)
-import Data.Maybe (fromMaybe)
 import Language.Java.Syntax hiding (Type)
 import Language.Java.Syntax.Util (ident)
 import Syntack.Zipper (ZC, children)
 
-callsTo :: [CompilationUnit] -> ZC -> [ZC]
-callsTo cs n = filter (isCallTo n) (concatMap (children (undefined :: Exp) . toZipper) cs)
+m_e :: e -> Maybe a -> Either e a
+m_e = maybeToEither
 
-isCallTo :: ZC -> ZC -> Bool
-isCallTo _ z = go (fromMaybe (error "isCallTo: zipper not pointing to Exp") $ getHole z)
+-- TODO: error propogation (isCallTo's errors are silently surpressed)
+callsTo :: [CompilationUnit] -> ZC -> [ZC]
+callsTo cs target = filter (either (const False) id . (isCallTo target)) (concatMap (children (undefined :: Exp) . toZipper) cs)
+
+isCallTo :: ZC -> ZC -> Either String Bool
+isCallTo target z = do
+    z' <- m_e "zipper not pointing to Exp" $ getHole z
+    t <- m_e "target not pointing to MemberDecl" $ (getHole :: ZC -> Maybe MemberDecl) target
+    _ <- m_e "target not pointing to MethodDecl" $ t ^? _MethodDecl
+    return $ go z'
     where
         go :: Exp -> Bool
         go (MethodInv m) = gomi m
