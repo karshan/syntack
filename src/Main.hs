@@ -1,8 +1,8 @@
 {-# LANGUAGE ViewPatterns #-}
-import           Control.Lens ((&))
+import           Control.Lens ((&), (^?), ix)
 import           Data.Either (lefts, rights)
 import           Data.Generics.Zipper (getHole)
-import           Data.Maybe (mapMaybe)
+import           Data.Maybe (mapMaybe, listToMaybe)
 
 import           Language.Java.Syntax
 import           Language.Java.Parser.Util (parseFile)
@@ -16,6 +16,8 @@ import           Syntack.Zipper (ZC, posToZipper, upTill)
 
 import           Text.Show.Pretty (ppShow)
 
+import           Prelude hiding (read)
+
 pps :: (Show a) => a -> IO ()
 pps = putStrLn . ppShow
 
@@ -26,12 +28,19 @@ usage :: String
 usage = "usage: find $PROJDIR -name \"*.java\" > files\n" ++
         "./syntack files file line col"
 
+read :: Read a => String -> Maybe a
+read = fmap fst . listToMaybe . reads
+
 main :: IO ()
-main = do
-    args <- getArgs
-    if length args /= 3 then
-        putStrLn usage
-    else run (head args) (args !! 1) (read $ args !! 2) (read $ args !! 3)
+main =
+    getArgs >>= (\args -> (do
+        fof <- args ^? ix 0
+        target <- args ^? ix 1
+        line <- read =<< args ^? ix 2
+        col <- read =<< args ^? ix 3
+        return (fof, target, line, col)) &
+            maybe (putStdErrLn usage) (\(a,b,c,d) -> run a b c d)
+        )
 
 run :: FilePath -> String -> Int -> Int -> IO ()
 run fileOfFiles file line col = do
