@@ -31,19 +31,21 @@ usage = "usage: find $PROJDIR -name \"*.java\" > files\n" ++
 read :: Read a => String -> Maybe a
 read = fmap fst . listToMaybe . reads
 
-main :: IO ()
-main =
-    getArgs >>= (\args -> (do
+type Args = (FilePath, String, Int, Int)
+
+parseArgs :: [String] -> Maybe Args
+parseArgs args = do
         fof <- args ^? ix 0
         target <- args ^? ix 1
         line <- read =<< args ^? ix 2
         col <- read =<< args ^? ix 3
-        return (fof, target, line, col)) &
-            maybe (putStdErrLn usage) (\(a,b,c,d) -> run a b c d)
-        )
+        return (fof, target, line, col)
 
-run :: FilePath -> String -> Int -> Int -> IO ()
-run fileOfFiles file line col = do
+main :: IO ()
+main = getArgs >>= (maybe (putStdErrLn usage) run . parseArgs)
+
+run :: (FilePath, String, Int, Int) -> IO ()
+run (fileOfFiles, file, line, col) = do
     parseFile file >>= either print (\targetCU ->
         posToZipper line col targetCU >>= upTill (undefined :: MemberDecl) &
         maybe (putStdErrLn "posToZipper failed") (\targetMemberDecl -> do
