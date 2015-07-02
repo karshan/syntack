@@ -44,7 +44,7 @@ parseArgs args = do
 main :: IO ()
 main = getArgs >>= (maybe (putStdErrLn usage) run . parseArgs)
 
-run :: (FilePath, String, Int, Int) -> IO ()
+run :: Args -> IO ()
 run (fileOfFiles, file, line, col) = do
     parseFile file >>= either print (\targetCU ->
         posToZipper line col targetCU >>= upTill (undefined :: MemberDecl) &
