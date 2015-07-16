@@ -11,12 +11,12 @@ import Language.Java.Syntax hiding (Type)
 import Language.Java.Syntax.Util (ident, name)
 import Syntack.Zipper (ZC, children)
 
-m_e :: e -> Maybe a -> Either e a
-m_e = maybeToEither
+mToE :: e -> Maybe a -> Either e a
+mToE = maybeToEither
 
 -- TODO: error propogation (isCallTo's errors are silently surpressed)
 callsTo :: [CompilationUnit] -> ZC -> [ZC]
-callsTo cs target = filter (either (const False) id . (isCallTo target)) (concatMap (children (undefined :: Exp) . toZipper) cs)
+callsTo cs target = filter (either (const False) id . isCallTo target) (concatMap (children (undefined :: Exp) . toZipper) cs)
 
 -- zeq = (==) `on` fromZipper
 
@@ -26,12 +26,11 @@ callsTo cs target = filter (either (const False) id . (isCallTo target)) (concat
 --     MethodCall (i:[]) _ -> False
 --     MethodCall (x:xs) _ ->
 --       (i == methodName target && (==) `on` (getHole . upTill ClassDecl) z target && zeq z target) ||
---          
 isCallTo :: ZC -> ZC -> Either String Bool
 isCallTo target z = do
-    z' <- m_e "zipper not pointing to Exp" $ getHole z
-    t <- m_e "target not pointing to MemberDecl" $ (getHole :: ZC -> Maybe MemberDecl) target
-    _ <- m_e "target not pointing to MethodDecl" $ t ^? _MethodDecl
+    z' <- mToE "zipper not pointing to Exp" $ getHole z
+    t <- mToE "target not pointing to MemberDecl" $ (getHole :: ZC -> Maybe MemberDecl) target
+    _ <- mToE "target not pointing to MethodDecl" $ t ^? _MethodDecl
     return $ go z'
     where
         go :: Exp -> Bool
@@ -43,7 +42,7 @@ isCallTo target z = do
         go _ = False
 
         gomi :: MethodInvocation -> Bool
-        gomi (MethodCall (name -> i:[]) _) = i == ""
+        gomi (MethodCall (name -> [i]) _) = i == ""
         gomi (MethodCall _ _) = False
         gomi (PrimaryMethodCall _ _ _ _) = False
         gomi (SuperMethodCall _ _ _) = False

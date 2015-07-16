@@ -1,5 +1,6 @@
-{-# LANGUAGE ViewPatterns #-}
-import           Control.Lens ((&), (^?), ix)
+import           Control.Arrow ((>>>))
+import           Control.Monad ((>=>))
+import           Control.Lens ((^?), ix)
 import           Data.Either (lefts, rights)
 import           Data.Generics.Zipper (getHole)
 import           Data.Maybe (mapMaybe, listToMaybe)
@@ -45,9 +46,9 @@ main :: IO ()
 main = getArgs >>= (maybe (putStdErrLn usage) run . parseArgs)
 
 run :: Args -> IO ()
-run (fileOfFiles, file, line, col) = do
-    parseFile file >>= either print (\targetCU ->
-        posToZipper line col targetCU >>= upTill (undefined :: MemberDecl) &
+run (fileOfFiles, file, line, col) =
+    parseFile file >>= either print (
+        (posToZipper line col >=> upTill (undefined :: MemberDecl)) >>>
         maybe (putStdErrLn "posToZipper failed") (\targetMemberDecl -> do
             fs <- mapM parseFile . lines =<< readFile fileOfFiles
             mapM_ (putStdErrLn . show) $ lefts fs
